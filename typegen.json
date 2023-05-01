@@ -1,0 +1,14 @@
+{
+  "outDir": "src/types",
+  "specVersions": "https://kusama.archive.subsquid.io/graphql",
+  "events": [
+    "Balances.Transfer",
+    "Proxy.ProxyAdded",
+    "Proxy.ProxyRemoved"
+  ],
+  "calls": [ 
+  ],
+  "storage": [
+    "Balances.Account"
+  ]
+}
