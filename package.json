@@ -6,7 +6,7 @@
   },
   "scripts": {
     "build": "rm -rf lib && tsc",
-    "dev": "tsc -w",
+    "dev": "tsc",
     "watch": "ts-node-dev --respawn --transpile-only src/processor.ts",
     "update": "npx npm-check-updates --filter /subsquid/ --upgrade && npm i -f",
     "db:migrate": "npx squid-typeorm-migration apply",

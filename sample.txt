@@ -1,0 +1,41 @@
+ProxyProxyAddedEvent {
+  _chain: Chain {
+    description: {
+      types: [Array],
+      call: 298,
+      digest: 11,
+      digestItem: 13,
+      event: 20,
+      eventRecord: 19,
+      eventRecordList: 18,
+      signature: 705,
+      storage: [Object],
+      constants: [Object]
+    },
+    getClient: [Function (anonymous)],
+    storageHashCache: Map(0) {},
+    constantValueCache: Map(0) {},
+    jsonCodec: JsonCodec { types: [Array] },
+    scaleCodec: Codec { types: [Array] },
+    events: Registry { types: [Array], definitions: [Object], hashes: {} },
+    calls: Registry { types: [Array], definitions: [Object], hashes: {} }
+  },
+  event: {
+    args: [
+      '0x0c2017a4f115c013d899b494c955a7ec4cc9786a3997f1823baacc213896a35a',
+      '0xd24bfa7e01cb86e6eab810a04a61d7bc3c32c094afd5b4739194c9583a69d238',
+      [Object],
+      0
+    ],
+    id: '0009647810-000027-036a9',
+    name: 'Proxy.ProxyAdded',
+    pos: 45,
+    extrinsic: {
+      hash: 
+'0xf624e138eecc801b950508823bcbadb6f2093e2d1b03cbaf542bb95507789c5a',
+      id: '0009647810-000009-036a9',
+      pos: 49,
+      fee: 51332857n
+    }
+  }
+}

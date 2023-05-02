@@ -1,5 +1,5 @@
-module.exports = class Data1682971837902 {
-    name = 'Data1682971837902'
+module.exports = class Data1683069040853 {
+    name = 'Data1683069040853'
 
     async up(db) {
         await db.query(`CREATE TABLE "transfer" ("id" character varying NOT NULL, "block_number" integer NOT NULL, "timestamp" TIMESTAMP WITH TIME ZONE NOT NULL, "extrinsic_hash" text, "amount" numeric NOT NULL, "fee" numeric NOT NULL, "from_id" character varying, "to_id" character varying, CONSTRAINT "PK_fd9ddbdd49a17afcbe014401295" PRIMARY KEY ("id"))`)
@@ -10,11 +10,13 @@ module.exports = class Data1682971837902 {
         await db.query(`CREATE INDEX "IDX_0751309c66e97eac9ef1149362" ON "transfer" ("to_id") `)
         await db.query(`CREATE INDEX "IDX_f4007436c1b546ede08a4fd7ab" ON "transfer" ("amount") `)
         await db.query(`CREATE TABLE "account" ("id" character varying NOT NULL, "balance" numeric NOT NULL, CONSTRAINT "PK_54115ee388cdb6d86bb4bf5b2ea" PRIMARY KEY ("id"))`)
-        await db.query(`CREATE TABLE "delegate" ("id" character varying NOT NULL, "block_number" integer NOT NULL, "proxy_type" text, "delegator_id" character varying, CONSTRAINT "PK_810516365b3daa9f6d6d2d4f2b7" PRIMARY KEY ("id"))`)
+        await db.query(`CREATE TABLE "delegate" ("id" character varying NOT NULL, "block_number" integer NOT NULL, "proxy_type" text, "delegator_id" character varying, "delegatee_id" character varying, CONSTRAINT "PK_810516365b3daa9f6d6d2d4f2b7" PRIMARY KEY ("id"))`)
         await db.query(`CREATE INDEX "IDX_6cdf75bc8f9e95dd7c3151a7a8" ON "delegate" ("delegator_id") `)
+        await db.query(`CREATE INDEX "IDX_e39989a146305e3c82ddcb5a79" ON "delegate" ("delegatee_id") `)
         await db.query(`ALTER TABLE "transfer" ADD CONSTRAINT "FK_76bdfed1a7eb27c6d8ecbb73496" FOREIGN KEY ("from_id") REFERENCES "account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`)
         await db.query(`ALTER TABLE "transfer" ADD CONSTRAINT "FK_0751309c66e97eac9ef11493623" FOREIGN KEY ("to_id") REFERENCES "account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`)
         await db.query(`ALTER TABLE "delegate" ADD CONSTRAINT "FK_6cdf75bc8f9e95dd7c3151a7a82" FOREIGN KEY ("delegator_id") REFERENCES "account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`)
+        await db.query(`ALTER TABLE "delegate" ADD CONSTRAINT "FK_e39989a146305e3c82ddcb5a797" FOREIGN KEY ("delegatee_id") REFERENCES "account"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`)
     }
 
     async down(db) {
@@ -28,8 +30,10 @@ module.exports = class Data1682971837902 {
         await db.query(`DROP TABLE "account"`)
         await db.query(`DROP TABLE "delegate"`)
         await db.query(`DROP INDEX "public"."IDX_6cdf75bc8f9e95dd7c3151a7a8"`)
+        await db.query(`DROP INDEX "public"."IDX_e39989a146305e3c82ddcb5a79"`)
         await db.query(`ALTER TABLE "transfer" DROP CONSTRAINT "FK_76bdfed1a7eb27c6d8ecbb73496"`)
         await db.query(`ALTER TABLE "transfer" DROP CONSTRAINT "FK_0751309c66e97eac9ef11493623"`)
         await db.query(`ALTER TABLE "delegate" DROP CONSTRAINT "FK_6cdf75bc8f9e95dd7c3151a7a82"`)
+        await db.query(`ALTER TABLE "delegate" DROP CONSTRAINT "FK_e39989a146305e3c82ddcb5a797"`)
     }
 }

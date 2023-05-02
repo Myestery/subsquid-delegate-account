@@ -1,7 +1,11 @@
 import * as ss58 from "@subsquid/ss58";
 
-import { Account, Transfer } from "./model";
-import { BalancesTransferEvent, ProxyProxyAddedEvent } from "./types/events";
+import { Account, Delegate, Transfer } from "./model";
+import {
+  BalancesTransferEvent,
+  ProxyProxyAddedEvent,
+  ProxyProxyRemovedEvent,
+} from "./types/events";
 import {
   BatchContext,
   BatchProcessorItem,
@@ -15,6 +19,16 @@ import { BalancesAccountStorage } from "./types/storage";
 import { In } from "typeorm";
 import { lookupArchive } from "@subsquid/archive-registry";
 
+type ProxyType =
+  | "Any"
+  | "NonTransfer"
+  | "Governance"
+  | "Staking"
+  | "IdentityJudgement"
+  | "CancelProxy"
+  | "Auction"
+  | "Society";
+
 const processor = new SubstrateBatchProcessor()
   .setDataSource({
     // Lookup archive by the network name in the Subsquid registry
@@ -23,10 +37,6 @@ const processor = new SubstrateBatchProcessor()
     // Use archive created by archive/docker-compose.yml
     archive: lookupArchive("kusama", { release: "FireSquid" }),
     chain: "wss://kusama-rpc.polkadot.io",
-  })
-  .setBlockRange({
-    from: 9647810,
-    to: 17721516,
   })
   .addEvent("Proxy.ProxyAdded", {
     data: {
@@ -38,12 +48,8 @@ const processor = new SubstrateBatchProcessor()
         },
       },
     },
-    range: {
-      from: 9647810,
-      to: 17721516,
-    },
   } as const)
-  .addEvent("Balances.Transfer", {
+  .addEvent("Proxy.ProxyRemoved", {
     data: {
       event: {
         args: true,
@@ -54,109 +60,90 @@ const processor = new SubstrateBatchProcessor()
       },
     },
   } as const);
-
 type Item = BatchProcessorItem<typeof processor>;
 type Ctx = BatchContext<Store, Item>;
 
 processor.run(new TypeormDatabase(), async (ctx) => {
   let proxies = getProxies(ctx);
-  console.log(proxies);
-  // let transfersData = getTransfers(ctx);
+  let delegates: Delegate[] = [];
+  let accountIds = new Set<string>();
 
-  // let accountIds = new Set<string>();
-  // for (let t of transfersData) {
-  //   accountIds.add(t.from);
-  //   accountIds.add(t.to);
-  // }
+  for (let t of [...proxies.added, ...proxies.removed]) {
+    accountIds.add(t.delegatorId);
+    accountIds.add(t.delegateeId);
+  }
+  // let accountIds = [];
+  const accountsData = await getAccountBalances(ctx, accountIds);
+  for (let t of proxies.added) {
+    await ctx.store.upsert(
+      new Account({
+        id: t.delegatorId,
+        balance: accountsData?.get(t.delegatorId) || 0n,
+      })
+    );
+    await ctx.store.upsert(
+      new Account({
+        id: t.delegateeId,
+        balance: accountsData?.get(t.delegateeId) || 0n,
+      })
+    );
+  }
 
-  // let accounts = await ctx.store
-  //   .findBy(Account, { id: In([...accountIds]) })
-  //   .then((accounts) => {
-  //     return new Map(accounts.map((a) => [a.id, a]));
-  //   });
+  let accounts = await ctx.store
+    .findBy(Account, { id: In([...accountIds]) })
+    .then((accounts: Account[]) => {
+      return new Map(accounts.map((a) => [a.id, a]));
+    });
 
-  // let transfers: Transfer[] = [];
+  proxies.added.map((x) => {
+    delegates.push(
+      new Delegate({
+        id: x.id,
+        blockNumber: x.blockNumber,
+        delegator: getAccount(accounts, x.delegatorId),
+        proxyType: x.proxyType,
+        delegatee: getAccount(accounts, x.delegateeId),
+      })
+    );
+    console.log("Creating delegate with delegatee id: ", x.delegateeId);
+  });
 
-  // const accountsData = await getAccountBalances(ctx, accountIds);
-  // for (let t of transfersData) {
-  //   let { id, blockNumber, timestamp, extrinsicHash, amount, fee } = t;
+  await ctx.store.insert(delegates);
 
-  //   let from = getAccount(accounts, t.from);
-  //   from.balance = accountsData?.get(from.id) || 0n;
-  //   let to = getAccount(accounts, t.to);
-  //   to.balance = accountsData?.get(to.id) || 0n;
-
-  //   transfers.push(
-  //     new Transfer({
-  //       id,
-  //       blockNumber,
-  //       timestamp,
-  //       extrinsicHash,
-  //       from,
-  //       to,
-  //       amount,
-  //       fee,
-  //     })
-  //   );
-  // }
-
-  // await ctx.store.save(Array.from(accounts.values()));
-  // await ctx.store.insert(transfers);
+  // delete removed proxies
+  await Promise.all(
+    proxies.removed.map(async (x) => {
+      let records = await ctx.store.findBy(Delegate, {
+        delegator_id: x.delegatorId,
+        delegatee_id: x.delegateeId,
+      });
+      if (records.length) {
+        await ctx.store.remove(
+          Delegate,
+          records.map((r) => r.id)
+        );
+        console.log("Deleting delegate with delegatee id: ", x.delegateeId);
+      }
+    })
+  );
 });
-
-interface TransferEvent {
-  id: string;
-  blockNumber: number;
-  timestamp: Date;
-  extrinsicHash?: string;
-  from: string;
-  to: string;
-  amount: bigint;
-  fee?: bigint;
-}
 
 interface ProxyCreateEvent {
   id: string;
   blockNumber: number;
   timestamp: Date;
   delegatorId: string;
-  proxyAccountId: string;
+  delegateeId: string;
   proxyType: string;
 }
 
-function getTransfers(ctx: Ctx): TransferEvent[] {
-  let transfers: TransferEvent[] = [];
-  for (let block of ctx.blocks) {
-    for (let item of block.items) {
-      if (item.name == "Balances.Transfer") {
-        let e = new BalancesTransferEvent(ctx, item.event);
-        let rec: { from: Uint8Array; to: Uint8Array; amount: bigint };
-        if (e.isV1020) {
-          let [from, to, amount] = e.asV1020;
-          rec = { from, to, amount };
-        } else if (e.isV1050) {
-          let [from, to, amount] = e.asV1050;
-          rec = { from, to, amount };
-        } else if (e.isV9130) {
-          rec = e.asV9130;
-        } else {
-          throw new Error("Unsupported spec");
-        }
-
-        transfers.push({
-          id: item.event.id,
-          blockNumber: block.header.height,
-          timestamp: new Date(block.header.timestamp),
-          extrinsicHash: item.event.extrinsic?.hash,
-          from: ss58.codec("kusama").encode(rec.from),
-          to: ss58.codec("kusama").encode(rec.to),
-          amount: rec.amount,
-          fee: item.event.extrinsic?.fee || 0n,
-        });
-      }
-    }
-  }
-  return transfers;
+interface ProxyRemoveEvent {
+  id: string;
+  blockNumber: number;
+  timestamp: Date;
+  delegatorId: string;
+  delegateeId: string;
+  proxyType: string;
 }
 
 function getAccount(m: Map<string, Account>, id: string): Account {
@@ -186,15 +173,80 @@ async function getAccountBalances(ctx: Ctx, ownersIds: Set<string>) {
   }
 }
 
-function getProxies(ctx: Ctx): ProxyCreateEvent[] {
-  let transfers: ProxyCreateEvent[] = [];
+function getProxies(ctx: Ctx): {
+  added: ProxyCreateEvent[];
+  removed: ProxyRemoveEvent[];
+} {
+  let proxies: ProxyCreateEvent[] = [];
+  let removedProxies: ProxyRemoveEvent[] = [];
   for (let block of ctx.blocks) {
     for (let item of block.items) {
       if (item.name == "Proxy.ProxyAdded") {
         let e = new ProxyProxyAddedEvent(ctx, item.event);
-        console.log(e);
+        let rec: {
+          delegator: Uint8Array;
+          delegatee: Uint8Array;
+          proxyType: ProxyType;
+        };
+        if (e.isV9180) {
+          rec = {
+            delegator: e.asV9180.delegator,
+            delegatee: e.asV9180.delegatee,
+            proxyType: e.asV9180.proxyType.__kind,
+          };
+        } else if (e.isV9111) {
+          rec = {
+            delegator: e.asV9111[0],
+            delegatee: e.asV9111[1],
+            proxyType: e.asV9111[2].__kind,
+          };
+        } else if (e.isV9130) {
+          rec = {
+            delegator: e.asV9130.delegator,
+            delegatee: e.asV9130.delegatee,
+            proxyType: e.asV9130.proxyType.__kind,
+          };
+        } else {
+          throw new Error("Unsupported spec");
+        }
+
+        proxies.push({
+          id: item.event.id,
+          blockNumber: block.header.height,
+          timestamp: new Date(block.header.timestamp),
+          // delegatorId: ss58.codec("kusama").encode(rec.delegator),
+          delegatorId: ss58.codec("kusama").encode(rec.delegator),
+          delegateeId: ss58.codec("kusama").encode(rec.delegatee),
+          proxyType: rec.proxyType,
+        });
+      }
+      // get deleted proxies too
+      if (item.name == "Proxy.ProxyRemoved") {
+        let e = new ProxyProxyRemovedEvent(ctx, item.event);
+        let rec: {
+          delegator: Uint8Array;
+          delegatee: Uint8Array;
+          proxyType: ProxyType;
+        };
+        if (e.isV9190) {
+          rec = {
+            delegator: e.asV9190.delegator,
+            delegatee: e.asV9190.delegatee,
+            proxyType: e.asV9190.proxyType.__kind,
+          };
+        } else {
+          throw new Error("Unsupported spec");
+        }
+        removedProxies.push({
+          id: item.event.id,
+          blockNumber: block.header.height,
+          timestamp: new Date(block.header.timestamp),
+          delegatorId: ss58.codec("kusama").encode(rec.delegator),
+          delegateeId: ss58.codec("kusama").encode(rec.delegatee),
+          proxyType: rec.proxyType,
+        });
       }
     }
   }
-  return transfers;
+  return { added: proxies, removed: removedProxies };
 }
