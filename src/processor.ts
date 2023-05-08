@@ -1,22 +1,19 @@
 import * as ss58 from "@subsquid/ss58";
 
-import { Account, Delegate, Transfer } from "./model";
-import {
-  BalancesTransferEvent,
-  ProxyProxyAddedEvent,
-  ProxyProxyRemovedEvent,
-} from "./types/events";
 import {
   BatchContext,
   BatchProcessorItem,
   SubstrateBatchProcessor,
-  decodeHex,
 } from "@subsquid/substrate-processor";
+import {
+  ProxyProxyAddedEvent,
+  ProxyProxyRemovedEvent,
+} from "./types/events";
 import { Store, TypeormDatabase } from "@subsquid/typeorm-store";
 
 import { AccountData } from "./types/v1050";
 import { BalancesAccountStorage } from "./types/storage";
-import { In } from "typeorm";
+import { Delegate, } from "./model";
 import { lookupArchive } from "@subsquid/archive-registry";
 
 type ProxyType =
@@ -73,36 +70,21 @@ processor.run(new TypeormDatabase(), async (ctx) => {
     accountIds.add(t.delegateeId);
   }
   // let accountIds = [];
-  const accountsData = await getAccountBalances(ctx, accountIds);
-  for (let t of proxies.added) {
-    await ctx.store.upsert(
-      new Account({
-        id: t.delegatorId,
-        balance: accountsData?.get(t.delegatorId) || 0n,
-      })
-    );
-    await ctx.store.upsert(
-      new Account({
-        id: t.delegateeId,
-        balance: accountsData?.get(t.delegateeId) || 0n,
-      })
-    );
-  }
 
-  let accounts = await ctx.store
-    .findBy(Account, { id: In([...accountIds]) })
-    .then((accounts: Account[]) => {
-      return new Map(accounts.map((a) => [a.id, a]));
-    });
+  // let accounts = await ctx.store
+  //   .findBy(Account, { id: In([...accountIds]) })
+  //   .then((accounts: Account[]) => {
+  //     return new Map(accounts.map((a) => [a.id, a]));
+  //   });
 
   proxies.added.map((x) => {
     delegates.push(
       new Delegate({
         id: x.id,
         blockNumber: x.blockNumber,
-        delegator: getAccount(accounts, x.delegatorId),
+        delegator: x.delegatorId,
         proxyType: x.proxyType,
-        delegatee: getAccount(accounts, x.delegateeId),
+        delegatee: x.delegateeId,
       })
     );
     console.log("Creating delegate with delegatee id: ", x.delegateeId);
@@ -114,8 +96,8 @@ processor.run(new TypeormDatabase(), async (ctx) => {
   await Promise.all(
     proxies.removed.map(async (x) => {
       let records = await ctx.store.findBy(Delegate, {
-        delegator_id: x.delegatorId,
-        delegatee_id: x.delegateeId,
+        delegator: x.delegatorId,
+        delegatee: x.delegateeId,
       });
       if (records.length) {
         await ctx.store.remove(
@@ -146,15 +128,15 @@ interface ProxyRemoveEvent {
   proxyType: string;
 }
 
-function getAccount(m: Map<string, Account>, id: string): Account {
-  let acc = m.get(id);
-  if (acc == null) {
-    acc = new Account();
-    acc.id = id;
-    m.set(id, acc);
-  }
-  return acc;
-}
+// function getAccount(m: Map<string, Account>, id: string): Account {
+//   let acc = m.get(id);
+//   if (acc == null) {
+//     acc = new Account();
+//     acc.id = id;
+//     m.set(id, acc);
+//   }
+//   return acc;
+// }
 
 async function getAccountBalances(ctx: Ctx, ownersIds: Set<string>) {
   const storage = new BalancesAccountStorage(

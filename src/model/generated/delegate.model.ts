@@ -1,6 +1,4 @@
-import {Column as Column_, Entity as Entity_, Index as Index_, ManyToOne as ManyToOne_, PrimaryColumn as PrimaryColumn_} from "typeorm"
-
-import {Account} from "./account.model"
+import {Entity as Entity_, Column as Column_, PrimaryColumn as PrimaryColumn_, Index as Index_} from "typeorm"
 
 @Entity_()
 export class Delegate {
@@ -12,22 +10,16 @@ export class Delegate {
     id!: string
 
     @Index_()
-    @ManyToOne_(() => Account, {nullable: true})
-    delegator!: Account
+    @Column_("text", {nullable: true})
+    delegator!: string | undefined | null
 
     @Index_()
-    @ManyToOne_(() => Account, {nullable: true})
-    delegatee!: Account
+    @Column_("text", {nullable: true})
+    delegatee!: string | undefined | null
 
     @Column_("int4", {nullable: false})
     blockNumber!: number
 
     @Column_("text", {nullable: true})
     proxyType!: string | undefined | null
-   
-    @Column_("text", {nullable: true})
-    delegator_id?: string
-
-    @Column_("text", {nullable: true})
-    delegatee_id?: string 
 }
