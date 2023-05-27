@@ -5,15 +5,12 @@ import {
   BatchProcessorItem,
   SubstrateBatchProcessor,
 } from "@subsquid/substrate-processor";
-import {
-  ProxyProxyAddedEvent,
-  ProxyProxyRemovedEvent,
-} from "./types/events";
+import { ProxyProxyAddedEvent, ProxyProxyRemovedEvent } from "./types/events";
 import { Store, TypeormDatabase } from "@subsquid/typeorm-store";
 
 import { AccountData } from "./types/v1050";
 import { BalancesAccountStorage } from "./types/storage";
-import { Delegate, } from "./model";
+import { Delegate } from "./model";
 import { lookupArchive } from "@subsquid/archive-registry";
 
 type ProxyType =
@@ -189,7 +186,13 @@ function getProxies(ctx: Ctx): {
             proxyType: e.asV9130.proxyType.__kind,
           };
         } else {
-          throw new Error("Unsupported spec");
+          console.error("Unsupported spec", ctx._chain.decodeEvent(item.event));
+          let decoded = ctx._chain.decodeEvent(item.event);
+          rec = {
+            delegator: decoded.delegator,
+            delegatee: decoded.delegatee,
+            proxyType: decoded.proxyType.__kind,
+          };
         }
 
         proxies.push({
@@ -217,7 +220,14 @@ function getProxies(ctx: Ctx): {
             proxyType: e.asV9190.proxyType.__kind,
           };
         } else {
-          throw new Error("Unsupported spec");
+          console.error("Unsupported spec", ctx._chain.decodeEvent(item.event));
+          let decoded = ctx._chain.decodeEvent(item.event);
+          rec = {
+            delegator: decoded.delegator,
+            delegatee: decoded.delegatee,
+            proxyType: decoded.proxyType.__kind,
+          };
+          // throw new Error("Unsupported spec");
         }
         removedProxies.push({
           id: item.event.id,
