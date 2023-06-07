@@ -4,6 +4,7 @@ import * as v9111 from './v9111'
 import * as v9130 from './v9130'
 import * as v9180 from './v9180'
 import * as v9190 from './v9190'
+import * as v9420 from './v9420'
 
 export class BalancesTransferEvent {
     private readonly _chain: Chain
@@ -121,6 +122,21 @@ export class ProxyProxyAddedEvent {
         assert(this.isV9180)
         return this._chain.decodeEvent(this.event)
     }
+
+    /**
+     * A proxy was added.
+     */
+    get isV9420(): boolean {
+        return this._chain.getEventHash('Proxy.ProxyAdded') === 'f4de253dbb3a2912e67e6bd54ef183234cf2db721e25f6dfea18839ba01d9b7d'
+    }
+
+    /**
+     * A proxy was added.
+     */
+    get asV9420(): {delegator: Uint8Array, delegatee: Uint8Array, proxyType: v9420.ProxyType, delay: number} {
+        assert(this.isV9420)
+        return this._chain.decodeEvent(this.event)
+    }
 }
 
 export class ProxyProxyRemovedEvent {
@@ -148,6 +164,21 @@ export class ProxyProxyRemovedEvent {
      */
     get asV9190(): {delegator: Uint8Array, delegatee: Uint8Array, proxyType: v9190.ProxyType, delay: number} {
         assert(this.isV9190)
+        return this._chain.decodeEvent(this.event)
+    }
+
+    /**
+     * A proxy was removed.
+     */
+    get isV9420(): boolean {
+        return this._chain.getEventHash('Proxy.ProxyRemoved') === 'f4de253dbb3a2912e67e6bd54ef183234cf2db721e25f6dfea18839ba01d9b7d'
+    }
+
+    /**
+     * A proxy was removed.
+     */
+    get asV9420(): {delegator: Uint8Array, delegatee: Uint8Array, proxyType: v9420.ProxyType, delay: number} {
+        assert(this.isV9420)
         return this._chain.decodeEvent(this.event)
     }
 }

@@ -1,6 +1,6 @@
 import type {Result, Option} from './support'
 
-export type ProxyType = ProxyType_Any | ProxyType_NonTransfer | ProxyType_Governance | ProxyType_Staking | ProxyType_IdentityJudgement | ProxyType_CancelProxy | ProxyType_Auction | ProxyType_Society
+export type ProxyType = ProxyType_Any | ProxyType_NonTransfer | ProxyType_Governance | ProxyType_Staking | ProxyType_IdentityJudgement | ProxyType_CancelProxy | ProxyType_Auction | ProxyType_Society | ProxyType_NominationPools
 
 export interface ProxyType_Any {
     __kind: 'Any'
@@ -32,6 +32,17 @@ export interface ProxyType_Auction {
 
 export interface ProxyType_Society {
     __kind: 'Society'
+}
+
+export interface ProxyType_NominationPools {
+    __kind: 'NominationPools'
+}
+
+export interface AccountData {
+    free: bigint
+    reserved: bigint
+    frozen: bigint
+    flags: bigint
 }
 
 export interface ProxyDefinition {

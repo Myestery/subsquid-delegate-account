@@ -9,6 +9,7 @@
   "calls": [ 
   ],
   "storage": [
-    "Balances.Account"
+    "Balances.Account",
+    "Proxy.Proxies"
   ]
 }

@@ -1,5 +1,6 @@
 import * as ss58 from "@subsquid/ss58";
 
+import { BalancesAccountStorage, ProxyProxiesStorage } from "./types/storage";
 import {
   BatchContext,
   BatchProcessorItem,
@@ -9,7 +10,6 @@ import { ProxyProxyAddedEvent, ProxyProxyRemovedEvent } from "./types/events";
 import { Store, TypeormDatabase } from "@subsquid/typeorm-store";
 
 import { AccountData } from "./types/v1050";
-import { BalancesAccountStorage } from "./types/storage";
 import { Delegate } from "./model";
 import { lookupArchive } from "@subsquid/archive-registry";
 
@@ -58,7 +58,8 @@ type Item = BatchProcessorItem<typeof processor>;
 type Ctx = BatchContext<Store, Item>;
 
 processor.run(new TypeormDatabase(), async (ctx) => {
-  let proxies = getProxies(ctx);
+  let proxies = await getProxies(ctx);
+  // await getProxies2(ctx);
   let delegates: Delegate[] = [];
   let accountIds = new Set<string>();
 
@@ -95,6 +96,7 @@ processor.run(new TypeormDatabase(), async (ctx) => {
       let records = await ctx.store.findBy(Delegate, {
         delegator: x.delegatorId,
         delegatee: x.delegateeId,
+        proxyType: x.proxyType,
       });
       if (records.length) {
         await ctx.store.remove(
@@ -152,7 +154,127 @@ async function getAccountBalances(ctx: Ctx, ownersIds: Set<string>) {
   }
 }
 
-function getProxies(ctx: Ctx): {
+async function getProxies(ctx: Ctx) {
+  const storage = new ProxyProxiesStorage(
+    ctx,
+    ctx.blocks[ctx.blocks.length - 1].header
+  );
+  let block = ctx.blocks[ctx.blocks.length - 1];
+  let proxArr: ProxyCreateEvent[] = [];
+  if (storage.isV2005) {
+    let keys = await storage.asV2005.getKeys();
+    let _proxies = await Promise.all(
+      keys.map(async (k) => await storage.asV2005.get(k))
+    );
+    _proxies.forEach((p, index) => {
+      p[0].forEach((x,idx) => {
+        proxArr.push({
+          id: `${block.header.id}-${index}-${idx}`,
+          blockNumber: block.header.height,
+          timestamp: new Date(block.header.timestamp),
+          delegatorId: ss58.codec("kusama").encode(keys[index]),
+          delegateeId: ss58.codec("kusama").encode(x[0]),
+          proxyType: x[1].__kind,
+        });
+      });
+    });
+  } else if (storage.isV2023) {
+    let keys = await storage.asV2023.getKeys();
+    let _proxies = await Promise.all(
+      keys.map(async (k) => await storage.asV2023.get(k))
+    );
+    _proxies.forEach((p, index) => {
+      p[0].forEach((x,idx) => {
+        proxArr.push({
+          id: `${block.header.id}-${index}-${idx}`,
+          blockNumber: block.header.height,
+          timestamp: new Date(block.header.timestamp),
+          delegatorId: ss58.codec("kusama").encode(keys[index]),
+          delegateeId: ss58.codec("kusama").encode(x.delegate),
+          proxyType: x.proxyType.__kind,
+        });
+      });
+    });
+  } else if (storage.isV9180) {
+    let keys = await storage.asV9180.getKeys();
+    let _proxies = await Promise.all(
+      keys.map(async (k) => await storage.asV9180.get(k))
+    );
+    _proxies.forEach((p, index) => {
+      p[0].forEach((x,idx) => {
+        proxArr.push({
+          id: `${block.header.id}-${index}-${idx}`,
+          blockNumber: block.header.height,
+          timestamp: new Date(block.header.timestamp),
+          delegatorId: ss58.codec("kusama").encode(keys[index]),
+          delegateeId: ss58.codec("kusama").encode(x.delegate),
+          proxyType: x.proxyType.__kind,
+        });
+      });
+    });
+  } else if (storage.isV9420) {
+    let keys = await storage.asV9420.getKeys();
+    let _proxies = await Promise.all(
+      keys.map(async (k) => await storage.asV9420.get(k))
+    );
+    _proxies.forEach((p, index) => {
+      p[0].forEach((x,idx) => {
+        proxArr.push({
+          id: `${block.header.id}-${index}-${idx}`,
+          blockNumber: block.header.height,
+          timestamp: new Date(block.header.timestamp),
+          delegatorId: ss58.codec("kusama").encode(keys[index]),
+          delegateeId: ss58.codec("kusama").encode(x.delegate),
+          proxyType: x.proxyType.__kind,
+        });
+      });
+    });
+  }
+
+  // proxy removed events
+  let removedProxies: ProxyRemoveEvent[] = [];
+  for (let block of ctx.blocks) {
+    for (let item of block.items) {
+      // get deleted proxies too
+      if (item.name == "Proxy.ProxyRemoved") {
+        let e = new ProxyProxyRemovedEvent(ctx, item.event);
+        let rec: {
+          delegator: Uint8Array;
+          delegatee: Uint8Array;
+          proxyType: ProxyType;
+        };
+        if (e.isV9190) {
+          rec = {
+            delegator: e.asV9190.delegator,
+            delegatee: e.asV9190.delegatee,
+            proxyType: e.asV9190.proxyType.__kind,
+          };
+        } else {
+          console.error("Unsupported spec", ctx._chain.decodeEvent(item.event));
+          let decoded = ctx._chain.decodeEvent(item.event);
+          rec = {
+            delegator: decoded.delegator,
+            delegatee: decoded.delegatee,
+            proxyType: decoded.proxyType.__kind,
+          };
+          // throw new Error("Unsupported spec");
+        }
+        removedProxies.push({
+          id: item.event.id,
+          blockNumber: block.header.height,
+          timestamp: new Date(block.header.timestamp),
+          delegatorId: ss58.codec("kusama").encode(rec.delegator),
+          delegateeId: ss58.codec("kusama").encode(rec.delegatee),
+          proxyType: rec.proxyType,
+        });
+      }
+    }
+  }
+  
+  return { added: proxArr, removed: removedProxies };
+}
+
+function getProxies1(ctx: Ctx): {
   added: ProxyCreateEvent[];
   removed: ProxyRemoveEvent[];
 } {
